@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CVE Monitoring & Package Scanner</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* A simple Inter font, as recommended */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom styles for the active tab */
+        .tab-button.active {
+            border-bottom-color: #3b82f6;
+            /* blue-500 */
+            color: #3b82f6;
+            /* blue-500 */
+        }
+
+        /* Simple loading spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left-color: #ffffff;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        .spinner-dark {
+            border-color: rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white rounded-xl shadow-2xl p-6 sm:p-10 max-w-4xl w-full">
+        <h1 class="text-3xl font-bold text-gray-900 mb-6 text-center">Vulnerability Management Portal</h1>
+
+
+        <div class="border-b border-gray-200 mb-6">
+            <nav class="flex -mb-px space-x-6" aria-label="Tabs">
+                <button id="cve-tab"
+                    class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    CVE Lookup
+                </button>
+
+                <button id="scanner-tab"
+                    class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Package Scanner
+                </button>
+
+                <button id="actions-tab"
+                    class="tab-button whitespace-nowrap py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                    Trigger Scan
+                </button>
+            </nav>
+        </div>
+
+
+        <div>
+
+
+
+            <div id="cve-content">
+                <p class="text-gray-600 mb-4">Search the NIST National Vulnerability Database (NVD) for a specific
+                    product.</p>
+
+                <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                    <input type="text" id="cve-search-input" placeholder="e.g., Apache 2.4.58 or Windows 11"
+                        class="flex-grow w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="cve-search-button"
+                        class="w-full sm:w-auto bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-300 flex items-center justify-center">
+                        <span id="cve-search-text">Search</span>
+                        <div id="cve-spinner" class="spinner hidden"></div>
+                    </button>
+                </div>
+
+
+                <div class="bg-gray-50 p-4 rounded-lg min-h-[200px]">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Results</h3>
+                    <p id="cve-status-message" class="text-gray-500">Enter a search term to find vulnerabilities.</p>
+                    <div id="cve-results-area" class="space-y-4">
+
+                    </div>
+                </div>
+            </div>
+
+
+
+
+            <div id="scanner-content" class="hidden">
+                <p class="text-gray-600 mb-4">Upload your <code
+                        class="bg-gray-200 p-1 rounded-md">package-lock.json</code> or <code
+                        class="bg-gray-200 p-1 rounded-md">requirements.txt</code> file.</p>
+
+
+                <input type="file" id="file-input" accept=".json,.txt,.lock" class="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-3 file:px-5
+                    file:rounded-lg file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100 mb-4
+                " />
+
+
+                <button id="scan-button"
+                    class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition duration-300 flex items-center justify-center">
+                    <span id="scan-button-text">Scan for Vulnerabilities</span>
+                    <div id="scan-spinner" class="spinner hidden"></div>
+                </button>
+
+
+                <div id="scanner-results-area" class="mt-6 hidden">
+                    <div id="scanner-results-content" class="bg-gray-50 p-6 rounded-lg">
+
+                    </div>
+
+
+                    <button id="download-script-button"
+                        class="mt-6 w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition duration-300 hidden">
+                        Download Fix Script
+                    </button>
+                </div>
+            </div>
+
+            <div id="actions-content" class="hidden">
+                <p class="text-gray-600 mb-4">
+                    Enter a public GitHub repository URL to trigger a scan.
+                    <br> (The repository must have the <code class="bg-gray-200 p-1 rounded-md">manual-scan.yml</code>
+                    workflow file.)
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                    <input type="text" id="repo-url-input" placeholder="e.g., https://github.com/your-name/your-repo"
+                        class="flex-grow w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="trigger-workflow-button"
+                        class="w-full sm:w-auto bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 flex items-center justify-center">
+                        <span id="trigger-button-text">Run Scan</span>
+                        <div id="trigger-spinner" class="spinner hidden"></div>
+                    </button>
+                </div>
+
+                
+                <div id="trigger-results-area" class="bg-gray-50 p-4 rounded-lg min-h-[50px]">
+                    <p id="trigger-status-message" class="text-gray-500">Enter a repository URL and click "Run Scan".
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        let vulnerabilityReport = [];
+        let currentFileType = '';
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const cveTab = document.getElementById('cve-tab');
+            const scannerTab = document.getElementById('scanner-tab');
+            const cveContent = document.getElementById('cve-content');
+            const scannerContent = document.getElementById('scanner-content');
+
+            
+
+
+
+            const actionsTab = document.getElementById('actions-tab');
+            const actionsContent = document.getElementById('actions-content');
+
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+
+
+            function switchTab(activeTab, activeContent) {
+                
+                [cveContent, scannerContent, actionsContent].forEach(c => c.classList.add('hidden'));
+                
+                
+                [cveTab, scannerTab, actionsTab].forEach(t => {
+                    t.classList.remove('active', 'border-blue-600', 'text-blue-600');
+                    t.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                });
+                
+                
+                activeContent.classList.remove('hidden');
+                
+                
+                activeTab.classList.add('active', 'border-blue-600', 'text-blue-600');
+                activeTab.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            }
+
+            
+            
+
+            cveTab.addEventListener('click', () => switchTab(cveTab, cveContent));
+            scannerTab.addEventListener('click', () => switchTab(scannerTab, scannerContent));
+            
+            
+            actionsTab.addEventListener('click', () => switchTab(actionsTab, actionsContent));
+
+            
+            
+            const repoUrlInput = document.getElementById('repo-url-input');
+            const triggerButton = document.getElementById('trigger-workflow-button');
+            const triggerButtonText = document.getElementById('trigger-button-text');
+            const triggerSpinner = document.getElementById('trigger-spinner');
+            const triggerStatusMessage = document.getElementById('trigger-status-message');
+
+            triggerButton.addEventListener('click', handleTriggerWorkflow);
+
+            async function handleTriggerWorkflow() {
+                const repoUrl = repoUrlInput.value.trim();
+                if (!repoUrl) {
+                    alert('Please enter a GitHub repository URL.');
+                    return;
+                }
+
+                
+                triggerButtonText.classList.add('hidden');
+                triggerSpinner.classList.remove('hidden');
+                triggerButton.disabled = true;
+                triggerStatusMessage.className = 'text-gray-500';
+                triggerStatusMessage.textContent = 'Sending trigger request...';
+
+                try {
+                    const response = await fetch('/api/trigger-workflow', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({repoUrl: repoUrl})
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.details || data.error || 'Failed to trigger.');
+                    }
+
+                    
+                    
+                    
+
+                    
+                    triggerStatusMessage.className = 'text-green-600 font-medium';
+                    
+                    
+                    const cleanRepoUrl = repoUrl.replace(/\/$/, '');
+                    const actionsUrl = `${cleanRepoUrl}/actions`;
+                    
+                    triggerStatusMessage.innerHTML = `
+                        ${data.message}
+                        <a href="${actionsUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline font-semibold ml-2">
+                            View Actions Tab &rarr;
+                        </a>
+                    `;
+
+                } catch (err) {
+                    console.error('Workflow Trigger Error:', err);
+                    triggerStatusMessage.className = 'text-red-600 font-medium';
+                    triggerStatusMessage.textContent = `Error: ${err.message}`;
+                } finally {
+                    
+                    triggerButtonText.classList.remove('hidden');
+                    triggerSpinner.classList.add('hidden');
+                    triggerButton.disabled = false;
+                }
+            }
+
+            cveTab.addEventListener('click', () => {
+                cveTab.classList.add('active');
+                scannerTab.classList.remove('active');
+                cveContent.classList.remove('hidden');
+                scannerContent.classList.add('hidden');
+            });
+
+            scannerTab.addEventListener('click', () => {
+                scannerTab.classList.add('active');
+                cveTab.classList.remove('active');
+                scannerContent.classList.remove('hidden');
+                cveContent.classList.add('hidden');
+            });
+
+
+            const cveSearchInput = document.getElementById('cve-search-input');
+            const cveSearchButton = document.getElementById('cve-search-button');
+            const cveSearchText = document.getElementById('cve-search-text');
+            const cveSpinner = document.getElementById('cve-spinner');
+            const cveStatusMessage = document.getElementById('cve-status-message');
+            const cveResultsArea = document.getElementById('cve-results-area');
+
+            cveSearchButton.addEventListener('click', handleCveSearch);
+            cveSearchInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') handleCveSearch();
+            });
+
+            async function handleCveSearch() {
+                const term = cveSearchInput.value.trim();
+                if (!term) {
+                    cveStatusMessage.textContent = 'Please enter a search term.';
+                    return;
+                }
+
+
+                cveSearchText.classList.add('hidden');
+                cveSpinner.classList.remove('hidden');
+                cveSearchButton.disabled = true;
+                cveStatusMessage.textContent = 'Searching...';
+                cveResultsArea.innerHTML = '';
+
+                try {
+
+                    const url = `/api/cve?keywordSearch=${encodeURIComponent(term)}`;
+                    const response = await fetch(url);
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.details || data.error || `API Error: ${response.status}`);
+                    }
+
+                    if (data.vulnerabilities && data.vulnerabilities.length > 0) {
+                        cveStatusMessage.textContent = `Found ${data.resultsPerPage} of ${data.totalResults} results.`;
+                        displayCveResults(data.vulnerabilities);
+                    } else {
+                        cveStatusMessage.textContent = 'No vulnerabilities found for this term.';
+                    }
+
+                } catch (err) {
+                    console.error('CVE Search Error:', err);
+                    cveStatusMessage.textContent = `Error: ${err.message}.`;
+                } finally {
+
+                    cveSearchText.classList.remove('hidden');
+                    cveSpinner.classList.add('hidden');
+                    cveSearchButton.disabled = false;
+                }
+            }
+
+            function displayCveResults(vulnerabilities) {
+                cveResultsArea.innerHTML = '';
+                vulnerabilities.forEach(item => {
+                    const cve = item.cve;
+                    const description = cve.descriptions.find(d => d.lang === 'en')?.value || 'No description available.';
+
+                    let score = 'N/A';
+                    let severity = 'UNKNOWN';
+                    if (cve.metrics && cve.metrics.cvssMetricV31 && cve.metrics.cvssMetricV31.length > 0) {
+                        const cvssData = cve.metrics.cvssMetricV31[0].cvssData;
+                        score = cvssData.baseScore;
+                        severity = cvssData.baseSeverity;
+                    } else if (cve.metrics && cve.metrics.cvssMetricV2 && cve.metrics.cvssMetricV2[0].cvssData) {
+                        const cvssData = cve.metrics.cvssMetricV2[0].cvssData;
+                        score = cvssData.baseScore;
+                        severity = cvssData.baseSeverity;
+                    }
+
+                    const severityColor = getSeverityColor(severity);
+                    const cveLink = `https://nvd.nist.gov/vuln/detail/${cve.id}`;
+
+                    const card = `
+                        <div class="border bg-white rounded-lg p-4 shadow-sm">
+                            <div class="flex justify-between items-start mb-2">
+                                <a href="${cveLink}" target="_blank" rel="noopener noreferrer" class="text-lg font-bold text-blue-600 hover:underline">${cve.id}</a>
+                                <span class="text-sm font-medium px-3 py-1 rounded-full ${severityColor}">
+                                    ${severity} (${score})
+                                </span>
+                            </div>
+                            <p class="text-gray-700 text-sm">${description}</p>
+                        </div>
+                    `;
+                    cveResultsArea.innerHTML += card;
+                });
+            }
+
+            function getSeverityColor(severity) {
+                switch (severity) {
+                    case 'CRITICAL': return 'bg-red-100 text-red-800';
+                    case 'HIGH': return 'bg-orange-100 text-orange-800';
+                    case 'MEDIUM': return 'bg-yellow-100 text-yellow-800';
+                    case 'LOW': return 'bg-green-100 text-green-800';
+                    default: return 'bg-gray-100 text-gray-800';
+                }
+            }
+
+
+
+            const fileInput = document.getElementById('file-input');
+            const scanButton = document.getElementById('scan-button');
+            const scanButtonText = document.getElementById('scan-button-text');
+            const scanSpinner = document.getElementById('scan-spinner');
+            const scannerResultsArea = document.getElementById('scanner-results-area');
+            const scannerResultsContent = document.getElementById('scanner-results-content');
+            const downloadScriptButton = document.getElementById('download-script-button');
+
+            scanButton.addEventListener('click', handlePackageScan);
+            downloadScriptButton.addEventListener('click', generateFixScript);
+
+            fileInput.addEventListener('change', () => {
+
+                const fileName = fileInput.files[0]?.name || '';
+                if (fileName.endsWith('package-lock.json') || fileName.endsWith('yarn.lock')) {
+                    currentFileType = 'npm';
+                } else if (fileName.endsWith('requirements.txt')) {
+                    currentFileType = 'pip';
+                } else {
+                    currentFileType = '';
+                }
+            });
+
+            async function handlePackageScan() {
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    alert('Please select a supported file (package-lock.json, yarn.lock, requirements.txt).');
+                    return;
+                }
+
+
+                scanButtonText.classList.add('hidden');
+                scanSpinner.classList.remove('hidden');
+                scanButton.disabled = true;
+                scannerResultsArea.classList.add('hidden');
+                downloadScriptButton.classList.add('hidden');
+                vulnerabilityReport = [];
+
+                try {
+                    const file = fileInput.files[0];
+                    const content = await file.text();
+
+
+                    const response = await fetch('/api/scan', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            fileName: file.name,
+                            content: content
+                        })
+                    });
+
+                    const reports = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(reports.details || reports.error || 'Server processing failed.');
+                    }
+
+
+                    vulnerabilityReport = reports.filter(report => report.vulnerabilities.length > 0);
+                    displayScanResults(vulnerabilityReport, reports.length);
+
+                } catch (err) {
+                    console.error('Scan Error:', err);
+                    scannerResultsContent.innerHTML = `<p class="font-medium text-red-700">Error: ${err.message}</p>`;
+                    scannerResultsArea.classList.remove('hidden');
+                } finally {
+
+                    scanButtonText.classList.remove('hidden');
+                    scanSpinner.classList.add('hidden');
+                    scanButton.disabled = false;
+                }
+            }
+
+            function displayScanResults(report, totalScanned) {
+                scannerResultsArea.classList.remove('hidden');
+
+                if (report.length === 0) {
+                    scannerResultsContent.innerHTML = `<p class="font-medium text-green-700">Scan Complete: No vulnerabilities found in ${totalScanned} packages. Your project looks secure!</p>`;
+                    return;
+                }
+
+                let html = `<p class="text-red-700 font-semibold mb-4">Found ${report.length} vulnerable packages:</p><ul class="list-disc pl-5 space-y-2">`;
+
+                report.forEach(vuln => {
+                    const [pkgType, pkgFullName] = vuln.coordinates.split('/');
+                    let pkgName, pkgVersion;
+
+                    if (pkgType === 'pkg:maven') {
+                        const parts = pkgFullName.split('@');
+                        pkgName = parts[0];
+                        pkgVersion = parts[1];
+                    } else {
+                        const parts = pkgFullName.split('@');
+                        pkgName = parts[0];
+                        pkgVersion = parts[1];
+                    }
+
+                    const vulnSummary = vuln.vulnerabilities[0].title;
+
+                    html += `<li class="text-gray-700">
+                                <strong>${pkgName}</strong> (Your version: ${pkgVersion})<br>
+                                <span class="text-sm text-red-600">${vulnSummary} (CVE: ${vuln.vulnerabilities[0].cve})</span>
+                             </li>`;
+                });
+
+                html += `</ul><p class="text-gray-800 font-medium mt-6">A script has been generated to fix these issues. You can download it and run it in your terminal.</p>`;
+                scannerResultsContent.innerHTML = html;
+
+                downloadScriptButton.classList.remove('hidden');
+            }
+
+            function generateFixScript() {
+                const commands = new Set();
+                let scriptContent = '';
+                let fileName = 'fix_vulnerabilities.sh';
+
+                if (currentFileType === 'npm') {
+                    vulnerabilityReport.forEach(report => {
+                        const pkgName = report.coordinates.split('/')[1].split('@')[0];
+                        commands.add(`npm update ${pkgName}`);
+                    });
+
+                    scriptContent = `#!/bin/bash
+# Run in your project root to fix Node.js vulnerabilities.
+echo "--- Starting Node.js vulnerability fix ---"
+echo "Running 'npm audit fix'..."
+npm audit fix
+echo "Running manual package updates for ${commands.size} packages..."
+${[...commands].join('\n')}
+echo "--- All fixes applied. ---"
+echo "Please run 'npm install' again and re-test your application."
+`;
+                } else if (currentFileType === 'pip') {
+                    fileName = 'fix_vulnerabilities.bat';
+                    vulnerabilityReport.forEach(report => {
+                        const pkgName = report.coordinates.split('/')[1].split('@')[0];
+                        commands.add(`pip install --upgrade ${pkgName}`);
+                    });
+
+                    scriptContent = `# Run this in your terminal to fix Python vulnerabilities.
+# Make sure your virtual environment is activated first!
+echo "--- Starting Python vulnerability fix ---"
+${[...commands].join('\n')}
+echo "--- All fixes applied. ---"
+echo "Please run 'pip freeze > requirements.txt' to update your file."
+`;
+                } else {
+                    alert('Cannot generate script for this file type.');
+                    return;
+                }
+
+
+                const blob = new Blob([scriptContent], {type: 'text/plain'});
+                const a = document.createElement('a');
+                a.style.display = 'none';
+
+                a.href = window.URL.createObjectURL(blob);
+                a.download = fileName;
+
+                document.body.appendChild(a);
+                a.click();
+
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(a.href);
+            }
+        });
+    </script>
+</body>
+
+</html>
